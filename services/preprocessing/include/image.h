@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <string>
 
 struct Image {
     int width;
@@ -10,7 +11,14 @@ struct Image {
 
     Image(int w, int h, int c) : width(w), height(h), channels(c), data(w*h*c) {}
     uint8_t* pixel(int x, int y) { return &data[(y * width + x) * channels]; }
+    const uint8_t* pixel(int x, int y) const { return &data[(y * width + x) * channels]; }
 };
 
-Image load_image(const std::string& filename, int desired_channels = 3);
-void save_image(const std::string& filename, const Image& img);
+Image load_image_rgb(const std::string& filename);
+Image load_image_grayscale(const std::string& filename);
+Image load_image_rgba(const std::string& filename);
+Image load_image_channels(const std::string& filename, int desired_channels);
+
+void save_image_png(const std::string& filename, const Image& img);
+void save_image_jpg(const std::string& filename, const Image& img, int quality = 95);
+void save_image_auto(const std::string& filename, const Image& img);
