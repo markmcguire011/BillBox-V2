@@ -42,6 +42,7 @@ set(MAIN_SOURCES
     src/main.cpp
     src/image.cpp
     src/grayscale.cpp
+    src/resize.cpp
     # TODO: Add future source files here, for example:
     # src/filters.cpp          # Image filtering operations
     # src/preprocessing.cpp    # Core preprocessing pipeline
@@ -54,6 +55,7 @@ set(MAIN_SOURCES
 set(HEADERS
     include/image.h
     include/grayscale.h
+    include/resize.h
     # TODO: Add future header files here, for example:
     # include/filters.h
     # include/preprocessing.h

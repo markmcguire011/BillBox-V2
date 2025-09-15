@@ -1,5 +1,6 @@
 #include "image.h"
 #include "grayscale.h"
+#include "resize.h"
 #include <iostream>
 #include <filesystem>
 
@@ -40,7 +41,53 @@ int main() {
         save_image("output/grayscale_default.png", gray_default);
         std::cout << "Saved default grayscale as 'output/grayscale_default.png'\n";
 
-        std::cout << "\nGrayscale conversion complete! Check the output files in the 'output' folder.\n";
+        std::cout << "\nGrayscale conversion complete!\n";
+
+        // Test resize and scaling operations
+        std::cout << "\nTesting resize and scaling operations...\n";
+
+        // Resize using nearest neighbor
+        Image resized_nn = resize_nearest_neighbor(img, img.width / 2, img.height / 2);
+        save_image("output/resized_nearest_neighbor.png", resized_nn);
+        std::cout << "Saved nearest neighbor resize as 'output/resized_nearest_neighbor.png' (" 
+                  << resized_nn.width << "x" << resized_nn.height << ")\n";
+
+        // Resize using bilinear interpolation
+        Image resized_bilinear = resize_bilinear(img, img.width / 3, img.height / 3);
+        save_image("output/resized_bilinear.png", resized_bilinear);
+        std::cout << "Saved bilinear resize as 'output/resized_bilinear.png' (" 
+                  << resized_bilinear.width << "x" << resized_bilinear.height << ")\n";
+
+        // Scale by factor
+        Image scaled_half = scale_image(img, 0.5f);
+        save_image("output/scaled_half.png", scaled_half);
+        std::cout << "Saved 50% scaled image as 'output/scaled_half.png' (" 
+                  << scaled_half.width << "x" << scaled_half.height << ")\n";
+
+        Image scaled_double = scale_image(img, 2.0f);
+        save_image("output/scaled_double.png", scaled_double);
+        std::cout << "Saved 200% scaled image as 'output/scaled_double.png' (" 
+                  << scaled_double.width << "x" << scaled_double.height << ")\n";
+
+        // Scale to specific width
+        Image scaled_width = scale_image_width(img, 800);
+        save_image("output/scaled_width_800.png", scaled_width);
+        std::cout << "Saved width-scaled image as 'output/scaled_width_800.png' (" 
+                  << scaled_width.width << "x" << scaled_width.height << ")\n";
+
+        // Scale to specific height
+        Image scaled_height = scale_image_height(img, 600);
+        save_image("output/scaled_height_600.png", scaled_height);
+        std::cout << "Saved height-scaled image as 'output/scaled_height_600.png' (" 
+                  << scaled_height.width << "x" << scaled_height.height << ")\n";
+
+        // Combine grayscale and resize operations
+        Image gray_small = resize_bilinear(gray_luminance, gray_luminance.width / 4, gray_luminance.height / 4);
+        save_image("output/grayscale_small.png", gray_small);
+        std::cout << "Saved small grayscale image as 'output/grayscale_small.png' (" 
+                  << gray_small.width << "x" << gray_small.height << ")\n";
+
+        std::cout << "\nAll image processing operations complete! Check the output files in the 'output' folder.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
