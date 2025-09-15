@@ -11,3 +11,6 @@ struct Image {
     Image(int w, int h, int c) : width(w), height(h), channels(c), data(w*h*c) {}
     uint8_t* pixel(int x, int y) { return &data[(y * width + x) * channels]; }
 };
+
+Image load_image(const std::string& filename, int desired_channels = 3);
+void save_image(const std::string& filename, const Image& img);
