@@ -22,12 +22,10 @@ Image load_image(const std::string& filename, int desired_channels) {
 void save_image(const std::string& filename, const Image& img) {
     int success = 0;
     if (filename.substr(filename.find_last_of(".") + 1) == "png") {
-        success = stbi_write_png(filename.c_str(), img.width, img.height, img.channels,
-                                 img.data.data(), img.width * img.channels);
-    } else if (filename.substr(filename.find_last_of(".") + 1) == "jpg" ||
-               filename.substr(filename.find_last_of(".") + 1) == "jpeg") {
-        success = stbi_write_jpg(filename.c_str(), img.width, img.height, img.channels,
-                                 img.data.data(), 95); // 95% quality
+        success = stbi_write_png(filename.c_str(), img.width, img.height, img.channels, img.data.data(), img.width * img.channels);
+    } else if (filename.substr(filename.find_last_of(".") + 1) == "jpg" || 
+    filename.substr(filename.find_last_of(".") + 1) == "jpeg") {
+        success = stbi_write_jpg(filename.c_str(), img.width, img.height, img.channels, img.data.data(), 95); // 95% quality
     } else {
         throw std::runtime_error("Unsupported file format for saving: " + filename);
     }
