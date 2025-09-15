@@ -1,6 +1,7 @@
 #include "image.h"
 #include "grayscale.h"
 #include "resize.h"
+#include "contrast.h"
 #include <iostream>
 #include <filesystem>
 
@@ -86,6 +87,46 @@ int main() {
         save_image_auto("output/grayscale_small.png", gray_small);
         std::cout << "Saved small grayscale image as 'output/grayscale_small.png' (" 
                   << gray_small.width << "x" << gray_small.height << ")\n";
+
+        std::cout << "\nResize operations complete!\n";
+
+        // Test contrast normalization operations
+        std::cout << "\nTesting contrast normalization operations...\n";
+
+        // Min-max normalization
+        Image contrast_minmax = normalize_contrast_minmax(img);
+        save_image_auto("output/contrast_minmax.png", contrast_minmax);
+        std::cout << "Saved min-max normalized image as 'output/contrast_minmax.png'\n";
+
+        // Percentile normalization
+        Image contrast_percentile = normalize_contrast_percentile(img, 5.0f, 95.0f);
+        save_image_auto("output/contrast_percentile.png", contrast_percentile);
+        std::cout << "Saved percentile normalized image as 'output/contrast_percentile.png'\n";
+
+        // Default normalization (should be same as min-max)
+        Image contrast_default = normalize_contrast(img);
+        save_image_auto("output/contrast_default.png", contrast_default);
+        std::cout << "Saved default normalized image as 'output/contrast_default.png'\n";
+
+        // Histogram equalization
+        Image hist_equalized = histogram_equalization(img);
+        save_image_auto("output/histogram_equalized.png", hist_equalized);
+        std::cout << "Saved histogram equalized image as 'output/histogram_equalized.png'\n";
+
+        // Adaptive histogram equalization
+        Image adaptive_equalized = adaptive_histogram_equalization(img, 32);
+        save_image_auto("output/adaptive_histogram_equalized.png", adaptive_equalized);
+        std::cout << "Saved adaptive histogram equalized image as 'output/adaptive_histogram_equalized.png'\n";
+
+        // Combine operations: grayscale + contrast normalization
+        Image gray_contrast = normalize_contrast(gray_luminance);
+        save_image_auto("output/grayscale_contrast_normalized.png", gray_contrast);
+        std::cout << "Saved grayscale contrast normalized image as 'output/grayscale_contrast_normalized.png'\n";
+
+        // Combine operations: resize + histogram equalization
+        Image small_equalized = histogram_equalization(scaled_half);
+        save_image_auto("output/small_histogram_equalized.png", small_equalized);
+        std::cout << "Saved small histogram equalized image as 'output/small_histogram_equalized.png'\n";
 
         std::cout << "\nAll image processing operations complete! Check the output files in the 'output' folder.\n";
 
