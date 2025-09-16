@@ -4,6 +4,7 @@
 #include "contrast.h"
 #include "filter.h"
 #include "threshold.h"
+#include "deskew.h"
 #include <iostream>
 #include <filesystem>
 #include <string>
@@ -17,7 +18,8 @@ void display_main_menu() {
     std::cout << "3. Contrast Normalization\n";
     std::cout << "4. Image Filtering\n";
     std::cout << "5. Image Thresholding\n";
-    std::cout << "6. Run All Techniques (Demo)\n";
+    std::cout << "6. Document Deskewing\n";
+    std::cout << "7. Run All Techniques (Demo)\n";
     std::cout << "0. Exit\n";
     std::cout << "======================================\n";
     std::cout << "Choose an option: ";
@@ -75,6 +77,17 @@ void display_threshold_menu() {
     std::cout << "3. Binary Inverted Threshold\n";
     std::cout << "4. Adaptive Mean Threshold\n";
     std::cout << "5. Adaptive Gaussian Threshold\n";
+    std::cout << "0. Back to Main Menu\n";
+    std::cout << "Choose method: ";
+}
+
+void display_deskew_menu() {
+    std::cout << "\n--- Document Deskewing ---\n";
+    std::cout << "1. Auto Deskew (Projection Profile)\n";
+    std::cout << "2. Auto Deskew (Hough Transform)\n";
+    std::cout << "3. Manual Deskew (Specify Angle)\n";
+    std::cout << "4. Estimate Skew Angle Only\n";
+    std::cout << "5. Manual Rotation (Specify Angle)\n";
     std::cout << "0. Back to Main Menu\n";
     std::cout << "Choose method: ";
 }
@@ -382,6 +395,68 @@ void process_threshold(const Image& img) {
     std::cout << "Saved result to: " << filename << "\n";
 }
 
+void process_deskew(const Image& img) {
+    int choice;
+    display_deskew_menu();
+    std::cin >> choice;
+    
+    Image result = img;
+    std::string filename;
+    
+    switch (choice) {
+        case 1: {
+            float skew_angle = estimate_skew_angle_projection(img);
+            result = deskew_auto(img);
+            filename = "output/deskewed_auto_projection.png";
+            std::cout << "Applied auto deskewing using projection profile (detected angle: " 
+                      << skew_angle << " degrees).\n";
+            break;
+        }
+        case 2: {
+            float skew_angle = estimate_skew_angle_hough(img);
+            result = deskew(img, skew_angle);
+            filename = "output/deskewed_auto_hough.png";
+            std::cout << "Applied auto deskewing using Hough transform (detected angle: " 
+                      << skew_angle << " degrees).\n";
+            break;
+        }
+        case 3: {
+            float angle;
+            std::cout << "Enter skew angle in degrees (positive = clockwise): ";
+            std::cin >> angle;
+            result = deskew_manual(img, angle);
+            filename = "output/deskewed_manual.png";
+            std::cout << "Applied manual deskewing (angle: " << angle << " degrees).\n";
+            break;
+        }
+        case 4: {
+            float skew_angle_proj = estimate_skew_angle_projection(img);
+            float skew_angle_hough = estimate_skew_angle_hough(img);
+            std::cout << "Estimated skew angles:\n";
+            std::cout << "  Projection Profile method: " << skew_angle_proj << " degrees\n";
+            std::cout << "  Hough Transform method: " << skew_angle_hough << " degrees\n";
+            return; // No image to save
+        }
+        case 5: {
+            float angle;
+            std::cout << "Enter rotation angle in degrees (positive = clockwise): ";
+            std::cin >> angle;
+            result = rotate_image(img, angle);
+            filename = "output/rotated_manual.png";
+            std::cout << "Applied manual rotation (angle: " << angle << " degrees).\n";
+            break;
+        }
+        case 0:
+            return;
+        default:
+            std::cout << "Invalid choice. Returning to main menu.\n";
+            return;
+    }
+    
+    save_image_auto(filename, result);
+    std::cout << "Saved result to: " << filename << "\n";
+}
+
 void run_demo(const Image& img) {
     std::cout << "\n--- Running Demo (All Techniques) ---\n";
     std::cout << "This will apply various techniques and save results...\n";
@@ -417,6 +492,11 @@ void run_demo(const Image& img) {
     Image thresholded = threshold_otsu(gray);
     save_image_auto("output/demo_threshold.png", thresholded);
     std::cout << "Saved thresholded image (Otsu's method)\n";
+    
+    // Deskew
+    Image deskewed = deskew_auto(img);
+    save_image_auto("output/demo_deskewed.png", deskewed);
+    std::cout << "Saved deskewed image (auto detection)\n";
     
     // Combination
     Image combo = median_filter_3x3(normalize_contrast(gray));
@@ -460,6 +540,9 @@ int main() {
                     process_threshold(img);
                     break;
                 case 6:
+                    process_deskew(img);
+                    break;
+                case 7:
                     run_demo(img);
                     break;
                 case 0:
