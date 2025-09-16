@@ -248,7 +248,7 @@ class TestOCREngine(unittest.TestCase):
                 
                 self.assertIsInstance(processed, np.ndarray)
                 self.assertIn('preprocessing_method', stats)
-                self.assertEqual(stats['preprocessing_method'], 'opencv_fallback')
+                self.assertEqual(stats['preprocessing_method'], 'opencv_primary')
     
     @unittest.skipUnless(TESSERACT_AVAILABLE, "Tesseract not available")
     def test_confidence_filtering(self):

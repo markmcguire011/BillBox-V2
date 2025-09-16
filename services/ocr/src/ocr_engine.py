@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 OCR Engine for BillBox - Pytesseract Implementation
-Handles text extraction from preprocessed images using Tesseract OCR
+Handles text extraction using OpenCV preprocessing (primary) with C++ preprocessing as fallback
+Combines robust image preprocessing with Tesseract OCR for optimal text extraction
 """
 
 import cv2
@@ -52,7 +53,8 @@ class OCRConfig:
 
 class OCREngine:
     """
-    Main OCR engine class that combines C++ preprocessing with Pytesseract OCR
+    Main OCR engine class that uses OpenCV preprocessing by default, with C++ preprocessing as fallback
+    Combines image preprocessing with Pytesseract OCR for text extraction
     """
     
     def __init__(self, config: Optional[OCRConfig] = None):
@@ -63,13 +65,14 @@ class OCREngine:
         # Verify tesseract installation
         self._verify_tesseract()
         
-        # Setup preprocessing if available
+        # Setup C++ preprocessing as fallback option if available
         if PREPROCESSING_AVAILABLE and self.config.enable_preprocessing:
             self.preprocessing_config = self._create_preprocessing_config()
+            self.logger.info("C++ preprocessing available as fallback option")
         else:
             self.preprocessing_config = None
             if self.config.enable_preprocessing:
-                self.logger.warning("Preprocessing requested but billbox_preprocessing not available")
+                self.logger.info("C++ preprocessing not available - using OpenCV primary with minimal fallback")
     
     def _verify_tesseract(self) -> None:
         """Verify that tesseract is properly installed"""
@@ -98,7 +101,7 @@ class OCREngine:
     
     def preprocess_image(self, image: np.ndarray) -> Tuple[np.ndarray, Dict]:
         """
-        Preprocess image using C++ pipeline or OpenCV fallback
+        Preprocess image using OpenCV by default, with C++ pipeline as fallback
         
         Args:
             image: Input image as numpy array (RGB or BGR)
@@ -108,39 +111,49 @@ class OCREngine:
         """
         stats = {}
         
-        if PREPROCESSING_AVAILABLE and self.preprocessing_config:
-            # Use C++ preprocessing pipeline
-            try:
-                if self.config.pipeline_type == 'invoice':
-                    result = bp.process_invoice_pipeline(image)
-                elif self.config.pipeline_type == 'document':
-                    result = bp.process_document_pipeline(image)
-                else:
-                    result = bp.process_custom_pipeline(image, self.preprocessing_config)
-                
-                if result.success:
-                    processed_image = result.get_final_numpy()
-                    stats = {
-                        'skew_angle': result.detected_skew_angle,
-                        'otsu_threshold': result.otsu_threshold,
-                        'steps_completed': len(result.step_names),
-                        'preprocessing_method': 'cpp_pipeline'
-                    }
-                    return processed_image, stats
-                else:
-                    self.logger.warning(f"C++ preprocessing failed: {result.error_message}")
-                    # Fall back to OpenCV
+        # Primary: Use OpenCV preprocessing
+        try:
+            processed_image, opencv_stats = self._opencv_preprocessing(image)
+            stats.update(opencv_stats)
+            stats['preprocessing_method'] = 'opencv_primary'
+            return processed_image, stats
+            
+        except Exception as e:
+            self.logger.warning(f"OpenCV preprocessing failed: {e}")
+            
+            # Fallback: Use C++ preprocessing pipeline if available
+            if PREPROCESSING_AVAILABLE and self.preprocessing_config:
+                self.logger.info("Falling back to C++ preprocessing pipeline")
+                try:
+                    if self.config.pipeline_type == 'invoice':
+                        result = bp.process_invoice_pipeline(image)
+                    elif self.config.pipeline_type == 'document':
+                        result = bp.process_document_pipeline(image)
+                    else:
+                        result = bp.process_custom_pipeline(image, self.preprocessing_config)
                     
-            except Exception as e:
-                self.logger.warning(f"C++ preprocessing error: {e}")
-                # Fall back to OpenCV
-        
-        # OpenCV fallback preprocessing
-        processed_image, fallback_stats = self._opencv_preprocessing(image)
-        stats.update(fallback_stats)
-        stats['preprocessing_method'] = 'opencv_fallback'
-        
-        return processed_image, stats
+                    if result.success:
+                        processed_image = result.get_final_numpy()
+                        stats = {
+                            'skew_angle': result.detected_skew_angle,
+                            'otsu_threshold': result.otsu_threshold,
+                            'steps_completed': len(result.step_names),
+                            'preprocessing_method': 'cpp_fallback'
+                        }
+                        return processed_image, stats
+                    else:
+                        self.logger.error(f"C++ preprocessing also failed: {result.error_message}")
+                        
+                except Exception as cpp_e:
+                    self.logger.error(f"C++ preprocessing fallback error: {cpp_e}")
+            
+            # Final fallback: Basic image normalization
+            self.logger.warning("Using minimal preprocessing as last resort")
+            processed_image, minimal_stats = self._minimal_preprocessing(image)
+            stats.update(minimal_stats)
+            stats['preprocessing_method'] = 'minimal_fallback'
+            
+            return processed_image, stats
     
     def _opencv_preprocessing(self, image: np.ndarray) -> Tuple[np.ndarray, Dict]:
         """Simple OpenCV-based preprocessing fallback"""
@@ -167,6 +180,100 @@ class OCREngine:
         
         return thresh, stats
     
+    def _minimal_preprocessing(self, image: np.ndarray) -> Tuple[np.ndarray, Dict]:
+        """
+        Minimal preprocessing as final fallback when everything else fails
+        
+        Args:
+            image: Input image array
+            
+        Returns:
+            Tuple of (processed_image, stats)
+        """
+        stats = {}
+        
+        try:
+            # Convert to grayscale if needed
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = image.copy()
+            
+            # Simple threshold (just use a fixed value)
+            _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            
+            stats['otsu_threshold'] = 127
+            stats['skew_angle'] = 0.0
+            stats['fallback_reason'] = 'all_preprocessing_failed'
+            
+            return thresh, stats
+            
+        except Exception as e:
+            # Last resort - just return the input image converted to grayscale
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = image.copy()
+            
+            stats['otsu_threshold'] = 0
+            stats['skew_angle'] = 0.0
+            stats['fallback_reason'] = 'emergency_fallback'
+            stats['error'] = str(e)
+            
+            return gray, stats
+    
+    def _prepare_image_for_ocr(self, image: np.ndarray) -> np.ndarray:
+        """
+        Prepare image for pytesseract by ensuring correct format and data type
+        
+        Args:
+            image: Input image array
+            
+        Returns:
+            Image ready for OCR processing
+        """
+        # Ensure image is in uint8 format
+        if image.dtype != np.uint8:
+            if image.dtype == np.float32 or image.dtype == np.float64:
+                # Convert from float [0,1] to uint8 [0,255]
+                if image.max() <= 1.0:
+                    image = (image * 255).astype(np.uint8)
+                else:
+                    image = image.astype(np.uint8)
+            else:
+                image = image.astype(np.uint8)
+        
+        # Handle different image shapes
+        if len(image.shape) == 3:
+            if image.shape[2] == 1:
+                # Single channel with explicit dimension - squeeze it
+                image = image.squeeze(axis=2)
+            elif image.shape[2] == 3:
+                # RGB image - convert to grayscale for better OCR
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            elif image.shape[2] == 4:
+                # RGBA image - convert to grayscale
+                image = cv2.cvtColor(image, cv2.COLOR_RGBA2GRAY)
+        elif len(image.shape) == 2:
+            # Already grayscale - good to go
+            pass
+        else:
+            raise ValueError(f"Unsupported image shape: {image.shape}")
+        
+        # Ensure minimum size for OCR
+        min_height, min_width = 20, 20
+        if image.shape[0] < min_height or image.shape[1] < min_width:
+            # Resize to minimum size
+            scale_h = min_height / image.shape[0] if image.shape[0] < min_height else 1
+            scale_w = min_width / image.shape[1] if image.shape[1] < min_width else 1
+            scale = max(scale_h, scale_w)
+            
+            new_height = int(image.shape[0] * scale)
+            new_width = int(image.shape[1] * scale)
+            image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+        
+        return image
+    
     def extract_text(self, image: np.ndarray) -> OCRResult:
         """
         Extract text from image
@@ -178,8 +285,19 @@ class OCREngine:
             OCRResult with extracted text and metadata
         """
         try:
+            # Validate and normalize input image
+            if image.size == 0:
+                raise ValueError("Error: Empty image provided")
+            
+            # Ensure image has proper dimensions
+            if len(image.shape) == 1 or min(image.shape[:2]) < 1:
+                raise ValueError(f"Invalid image dimensions: {image.shape}")
+            
             # Preprocess image
             processed_image, preprocessing_stats = self.preprocess_image(image)
+            
+            # Ensure processed image is in correct format for pytesseract
+            processed_image = self._prepare_image_for_ocr(processed_image)
             
             # Extract text using pytesseract
             text = pytesseract.image_to_string(
@@ -378,11 +496,11 @@ def create_ocr_engine(
     
     Args:
         tesseract_config: Tesseract configuration string
-        enable_preprocessing: Whether to use C++ preprocessing
+        enable_preprocessing: Whether to enable preprocessing (OpenCV primary, C++ fallback)
         pipeline_type: Type of preprocessing pipeline ('invoice', 'document', 'custom')
         
     Returns:
-        Configured OCREngine instance
+        Configured OCREngine instance (uses OpenCV preprocessing by default)
     """
     config = OCRConfig(
         tesseract_config=tesseract_config,
