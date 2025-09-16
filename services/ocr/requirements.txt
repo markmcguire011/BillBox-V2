@@ -1,0 +1,15 @@
+# Core dependencies for building
+setuptools>=61.0
+wheel>=0.37.0
+pybind11>=2.10.0
+numpy>=1.19.0
+
+# OCR dependencies
+opencv-python>=4.5.0
+pytesseract>=0.3.8
+Pillow>=8.0.0
+
+# Optional development dependencies
+pytest>=6.0
+black>=21.0
+mypy>=0.900
