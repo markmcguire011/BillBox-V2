@@ -1,2 +1,7 @@
 services/preprocessing/build
 services/preprocessing/examples
+venv
+output
+__pycache__
+*.so
+.env
