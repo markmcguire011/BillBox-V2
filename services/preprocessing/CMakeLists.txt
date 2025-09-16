@@ -44,8 +44,8 @@ set(MAIN_SOURCES
     src/grayscale.cpp
     src/resize.cpp
     src/contrast.cpp
+    src/filter.cpp
     # TODO: Add future source files here, for example:
-    # src/filters.cpp          # Image filtering operations
     # src/preprocessing.cpp    # Core preprocessing pipeline
     # src/ocr_prep.cpp        # OCR preparation functions
     # src/deskew.cpp          # Document deskewing
@@ -58,8 +58,8 @@ set(HEADERS
     include/grayscale.h
     include/resize.h
     include/contrast.h
+    include/filter.h
     # TODO: Add future header files here, for example:
-    # include/filters.h
     # include/preprocessing.h
     # include/ocr_prep.h
     # include/deskew.h

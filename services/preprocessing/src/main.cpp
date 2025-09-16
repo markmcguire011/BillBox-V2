@@ -2,6 +2,7 @@
 #include "grayscale.h"
 #include "resize.h"
 #include "contrast.h"
+#include "filter.h"
 #include <iostream>
 #include <filesystem>
 
@@ -127,6 +128,61 @@ int main() {
         Image small_equalized = histogram_equalization(scaled_half);
         save_image_auto("output/small_histogram_equalized.png", small_equalized);
         std::cout << "Saved small histogram equalized image as 'output/small_histogram_equalized.png'\n";
+
+        std::cout << "\nContrast operations complete!\n";
+
+        // Test filtering operations
+        std::cout << "\nTesting filtering operations...\n";
+
+        // Median filters
+        Image median_3x3 = median_filter_3x3(img);
+        save_image_auto("output/median_filter_3x3.png", median_3x3);
+        std::cout << "Saved 3x3 median filtered image as 'output/median_filter_3x3.png'\n";
+
+        Image median_5x5 = median_filter_5x5(img);
+        save_image_auto("output/median_filter_5x5.png", median_5x5);
+        std::cout << "Saved 5x5 median filtered image as 'output/median_filter_5x5.png'\n";
+
+        Image median_custom = median_filter(img, 7);
+        save_image_auto("output/median_filter_7x7.png", median_custom);
+        std::cout << "Saved 7x7 median filtered image as 'output/median_filter_7x7.png'\n";
+
+        // Gaussian blur filters
+        Image gaussian_3x3 = gaussian_blur_3x3(img);
+        save_image_auto("output/gaussian_blur_3x3.png", gaussian_3x3);
+        std::cout << "Saved 3x3 Gaussian blur image as 'output/gaussian_blur_3x3.png'\n";
+
+        Image gaussian_5x5 = gaussian_blur_5x5(img);
+        save_image_auto("output/gaussian_blur_5x5.png", gaussian_5x5);
+        std::cout << "Saved 5x5 Gaussian blur image as 'output/gaussian_blur_5x5.png'\n";
+
+        Image gaussian_strong = gaussian_blur_strong(img);
+        save_image_auto("output/gaussian_blur_strong.png", gaussian_strong);
+        std::cout << "Saved strong Gaussian blur image as 'output/gaussian_blur_strong.png'\n";
+
+        Image gaussian_custom = gaussian_blur(img, 2.0f, 9);
+        save_image_auto("output/gaussian_blur_custom.png", gaussian_custom);
+        std::cout << "Saved custom Gaussian blur image as 'output/gaussian_blur_custom.png'\n";
+
+        // Box blur filter
+        Image box_blur_img = box_blur(img, 5);
+        save_image_auto("output/box_blur_5x5.png", box_blur_img);
+        std::cout << "Saved 5x5 box blur image as 'output/box_blur_5x5.png'\n";
+
+        // Combine operations: grayscale + median filter
+        Image gray_median = median_filter_3x3(gray_luminance);
+        save_image_auto("output/grayscale_median_filtered.png", gray_median);
+        std::cout << "Saved grayscale median filtered image as 'output/grayscale_median_filtered.png'\n";
+
+        // Combine operations: resize + gaussian blur
+        Image small_blurred = gaussian_blur_3x3(scaled_half);
+        save_image_auto("output/small_gaussian_blur.png", small_blurred);
+        std::cout << "Saved small Gaussian blurred image as 'output/small_gaussian_blur.png'\n";
+
+        // Complex combination: grayscale + contrast + filter
+        Image processed = median_filter_3x3(gray_contrast);
+        save_image_auto("output/grayscale_contrast_filtered.png", processed);
+        std::cout << "Saved grayscale contrast filtered image as 'output/grayscale_contrast_filtered.png'\n";
 
         std::cout << "\nAll image processing operations complete! Check the output files in the 'output' folder.\n";
 
