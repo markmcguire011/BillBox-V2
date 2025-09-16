@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BillBox - Invoice Processing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-top: 2rem;
+            width: 90%;
+            max-width: 600px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 2rem;
+        }
+        
+        .section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        
+        .section h2 {
+            color: #555;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #5a6fd8;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        input[type="text"], input[type="datetime-local"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .user-info {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        .results {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #666;
+        }
+        
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BillBox Invoice Processing</h1>
+        
+        <!-- Authentication Section -->
+        <div class="section">
+            <h2>1. Authentication</h2>
+            <div id="auth-logged-out">
+                <button onclick="loginWithGoogle()">Login with Google</button>
+                <div class="status info">
+                    You need to authenticate with Google to access your calendar and process invoices.
+                </div>
+            </div>
+            <div id="auth-logged-in" class="hidden">
+                <div class="user-info" id="user-info"></div>
+                <button onclick="logout()">Logout</button>
+            </div>
+        </div>
+        
+        <!-- Invoice Processing Section -->
+        <div class="section">
+            <h2>2. Upload & Process Invoice</h2>
+            <input type="file" id="invoice-file" accept="image/*" disabled>
+            
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="create-calendar-event" disabled>
+                    Create calendar event after processing
+                </label>
+            </div>
+            
+            <div id="calendar-event-details" class="hidden">
+                <input type="text" id="event-summary" placeholder="Event title (e.g., 'Review Invoice #123')">
+                <textarea id="event-description" placeholder="Event description (optional)" rows="3"></textarea>
+            </div>
+            
+            <button onclick="processInvoice()" id="process-btn" disabled>Process Invoice</button>
+            
+            <div class="loading" id="processing-loading">
+                Processing invoice... This may take a few moments.
+            </div>
+            
+            <div class="results" id="invoice-results"></div>
+        </div>
+        
+        <!-- Calendar Section -->
+        <div class="section">
+            <h2>3. Create Calendar Event</h2>
+            <input type="text" id="calendar-summary" placeholder="Event title" disabled>
+            <textarea id="calendar-description" placeholder="Event description (optional)" rows="3" disabled></textarea>
+            <input type="datetime-local" id="calendar-start" disabled>
+            <input type="datetime-local" id="calendar-end" disabled>
+            
+            <button onclick="createCalendarEvent()" id="calendar-btn" disabled>Create Calendar Event</button>
+            
+            <div class="results" id="calendar-results"></div>
+        </div>
+        
+        <div class="status" id="global-status"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let authToken = localStorage.getItem('billbox_token');
+        let currentUser = null;
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            if (authToken) {
+                // Load user info from localStorage
+                const storedUser = localStorage.getItem('billbox_user');
+                if (storedUser) {
+                    currentUser = JSON.parse(storedUser);
+                }
+                // Show logged in state immediately
+                showLoggedInState();
+            }
+            
+            // Set up event listeners
+            document.getElementById('create-calendar-event').addEventListener('change', function() {
+                const details = document.getElementById('calendar-event-details');
+                if (this.checked) {
+                    details.classList.remove('hidden');
+                } else {
+                    details.classList.add('hidden');
+                }
+            });
+            
+            // Set default datetime values
+            const now = new Date();
+            const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+            document.getElementById('calendar-start').value = formatDateTimeLocal(now);
+            document.getElementById('calendar-end').value = formatDateTimeLocal(oneHourLater);
+        });
+
+        // Listen for auth success messages from popup
+        window.addEventListener('message', function(event) {
+            if (event.origin !== 'http://localhost:3000') return;
+            
+            if (event.data.type === 'auth_success') {
+                authToken = event.data.token;
+                currentUser = event.data.user;
+                localStorage.setItem('billbox_token', authToken);
+                localStorage.setItem('billbox_user', JSON.stringify(currentUser));
+                showLoggedInState();
+            } else if (event.data.type === 'auth_error') {
+                showStatus('error', 'Authentication failed: ' + event.data.error);
+            }
+        });
+
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        async function validateToken() {
+            try {
+                const response = await fetch(`${API_BASE}/calendar/create-event`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        summary: 'test',
+                        start_time: new Date().toISOString(),
+                        end_time: new Date().toISOString()
+                    })
+                });
+                
+                if (response.status === 401) {
+                    // Token expired
+                    logout();
+                } else {
+                    // Token valid, show logged in state
+                    showLoggedInState();
+                }
+            } catch (error) {
+                logout();
+            }
+        }
+
+        async function loginWithGoogle() {
+            try {
+                showStatus('info', 'Initiating Google login...');
+                const response = await fetch(`${API_BASE}/auth/google`);
+                const data = await response.json();
+                
+                if (data.auth_url) {
+                    // Open Google auth in new window
+                    const authWindow = window.open(data.auth_url, 'auth', 'width=500,height=600');
+                    
+                    // Listen for the auth completion
+                    const checkClosed = setInterval(() => {
+                        if (authWindow.closed) {
+                            clearInterval(checkClosed);
+                            // Check if we have a token in localStorage (set by callback)
+                            const token = localStorage.getItem('billbox_token');
+                            if (token) {
+                                authToken = token;
+                                showLoggedInState();
+                            }
+                        }
+                    }, 1000);
+                } else {
+                    showStatus('error', 'Failed to initiate Google login');
+                }
+            } catch (error) {
+                showStatus('error', 'Login failed: ' + error.message);
+            }
+        }
+
+        function showLoggedInState() {
+            document.getElementById('auth-logged-out').classList.add('hidden');
+            document.getElementById('auth-logged-in').classList.remove('hidden');
+            
+            // Enable invoice processing
+            document.getElementById('invoice-file').disabled = false;
+            document.getElementById('create-calendar-event').disabled = false;
+            document.getElementById('process-btn').disabled = false;
+            
+            // Enable calendar creation
+            document.getElementById('calendar-summary').disabled = false;
+            document.getElementById('calendar-description').disabled = false;
+            document.getElementById('calendar-start').disabled = false;
+            document.getElementById('calendar-end').disabled = false;
+            document.getElementById('calendar-btn').disabled = false;
+            
+            showStatus('success', 'Successfully logged in!');
+            
+            // Load user info from localStorage if not already loaded
+            if (!currentUser) {
+                const storedUser = localStorage.getItem('billbox_user');
+                if (storedUser) {
+                    currentUser = JSON.parse(storedUser);
+                }
+            }
+            
+            // Show user info if available
+            if (currentUser) {
+                const userInfo = document.getElementById('user-info');
+                userInfo.innerHTML = `Logged in as: ${currentUser.name} (${currentUser.email})`;
+                userInfo.style.display = 'block';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('billbox_token');
+            authToken = null;
+            currentUser = null;
+            
+            document.getElementById('auth-logged-out').classList.remove('hidden');
+            document.getElementById('auth-logged-in').classList.add('hidden');
+            
+            // Disable all functionality
+            document.getElementById('invoice-file').disabled = true;
+            document.getElementById('create-calendar-event').disabled = true;
+            document.getElementById('process-btn').disabled = true;
+            document.getElementById('calendar-summary').disabled = true;
+            document.getElementById('calendar-description').disabled = true;
+            document.getElementById('calendar-start').disabled = true;
+            document.getElementById('calendar-end').disabled = true;
+            document.getElementById('calendar-btn').disabled = true;
+            
+            showStatus('info', 'Logged out successfully');
+        }
+
+        async function processInvoice() {
+            const fileInput = document.getElementById('invoice-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('error', 'Please select an invoice image first');
+                return;
+            }
+            
+            if (!authToken) {
+                showStatus('error', 'Please login first');
+                return;
+            }
+            
+            const createEvent = document.getElementById('create-calendar-event').checked;
+            const eventSummary = document.getElementById('event-summary').value;
+            const eventDescription = document.getElementById('event-description').value;
+            
+            if (createEvent && !eventSummary) {
+                showStatus('error', 'Please enter an event title if creating a calendar event');
+                return;
+            }
+            
+            try {
+                document.getElementById('processing-loading').style.display = 'block';
+                document.getElementById('process-btn').disabled = true;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('create_calendar_event', createEvent);
+                if (createEvent) {
+                    formData.append('event_summary', eventSummary);
+                    formData.append('event_description', eventDescription);
+                }
+                
+                const response = await fetch(`${API_BASE}/invoice/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayInvoiceResults(result);
+                    showStatus('success', 'Invoice processed successfully!');
+                } else {
+                    showStatus('error', 'Invoice processing failed: ' + result.error);
+                }
+            } catch (error) {
+                showStatus('error', 'Processing failed: ' + error.message);
+            } finally {
+                document.getElementById('processing-loading').style.display = 'none';
+                document.getElementById('process-btn').disabled = false;
+            }
+        }
+
+        function displayInvoiceResults(result) {
+            const resultsDiv = document.getElementById('invoice-results');
+            let html = '<h3>Processing Results:</h3>';
+            
+            if (result.invoice_data) {
+                html += `
+                    <p><strong>OCR Confidence:</strong> ${result.invoice_data.confidence?.toFixed(1)}%</p>
+                    <p><strong>Words Detected:</strong> ${result.invoice_data.word_count}</p>
+                    <p><strong>Processing Method:</strong> ${result.invoice_data.preprocessing_stats?.method || 'unknown'}</p>
+                    <details>
+                        <summary>Extracted Text</summary>
+                        <pre style="white-space: pre-wrap; font-size: 12px; margin-top: 10px;">${result.invoice_data.raw_text}</pre>
+                    </details>
+                `;
+            }
+            
+            if (result.calendar_event) {
+                if (result.calendar_event.error) {
+                    html += `<p><strong>Calendar Event:</strong> <span style="color: red;">Failed - ${result.calendar_event.error}</span></p>`;
+                } else {
+                    html += `
+                        <p><strong>Calendar Event Created:</strong> ✅</p>
+                        <p><a href="${result.calendar_event.event_link}" target="_blank">View in Google Calendar</a></p>
+                    `;
+                }
+            }
+            
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        async function createCalendarEvent() {
+            const summary = document.getElementById('calendar-summary').value;
+            const description = document.getElementById('calendar-description').value;
+            const startTime = document.getElementById('calendar-start').value;
+            const endTime = document.getElementById('calendar-end').value;
+            
+            if (!summary || !startTime || !endTime) {
+                showStatus('error', 'Please fill in all required calendar fields');
+                return;
+            }
+            
+            if (!authToken) {
+                showStatus('error', 'Please login first');
+                return;
+            }
+            
+            try {
+                document.getElementById('calendar-btn').disabled = true;
+                
+                const response = await fetch(`${API_BASE}/calendar/create-event`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        summary: summary,
+                        description: description,
+                        start_time: new Date(startTime).toISOString(),
+                        end_time: new Date(endTime).toISOString()
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const resultsDiv = document.getElementById('calendar-results');
+                    resultsDiv.innerHTML = `
+                        <h3>Calendar Event Created:</h3>
+                        <p><strong>Title:</strong> ${result.summary}</p>
+                        <p><strong>Start:</strong> ${new Date(result.start_time).toLocaleString()}</p>
+                        <p><strong>End:</strong> ${new Date(result.end_time).toLocaleString()}</p>
+                        <p><a href="${result.event_link}" target="_blank">View in Google Calendar</a></p>
+                    `;
+                    resultsDiv.style.display = 'block';
+                    showStatus('success', 'Calendar event created successfully!');
+                } else {
+                    showStatus('error', 'Failed to create calendar event');
+                }
+            } catch (error) {
+                showStatus('error', 'Calendar creation failed: ' + error.message);
+            } finally {
+                document.getElementById('calendar-btn').disabled = false;
+            }
+        }
+
+        function showStatus(type, message) {
+            const statusDiv = document.getElementById('global-status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Handle auth callback (if this page is opened as callback)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('access_token')) {
+            const token = urlParams.get('access_token');
+            const userInfo = JSON.parse(urlParams.get('user_info') || '{}');
+            
+            localStorage.setItem('billbox_token', token);
+            authToken = token;
+            currentUser = userInfo;
+            
+            // Clean URL
+            window.history.replaceState({}, document.title, '/');
+            
+            showLoggedInState();
+        }
+    </script>
+</body>
+</html>

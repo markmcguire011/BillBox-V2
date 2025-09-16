@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BillBox - Authentication</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 2rem;
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .loading {
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            color: #d32f2f;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <div class="loading">Completing authentication...</div>
+        <div id="error-message" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function handleCallback() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+                
+                if (error) {
+                    throw new Error(`Authentication error: ${error}`);
+                }
+                
+                if (!code) {
+                    throw new Error('No authorization code received');
+                }
+                
+                // Exchange code for token
+                const response = await fetch(`${API_BASE}/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Authentication failed');
+                }
+                
+                const data = await response.json();
+                
+                // Store token and user info
+                localStorage.setItem('billbox_token', data.access_token);
+                localStorage.setItem('billbox_user', JSON.stringify(data.user_info));
+                
+                // Close popup and notify parent window
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'auth_success',
+                        token: data.access_token,
+                        user: data.user_info
+                    }, 'http://localhost:3000');
+                    window.close();
+                } else {
+                    // If not in popup, redirect to main page
+                    window.location.href = 'index.html';
+                }
+                
+            } catch (error) {
+                console.error('Callback error:', error);
+                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('error-message').style.display = 'block';
+                document.querySelector('.loading').style.display = 'none';
+                document.querySelector('.spinner').style.display = 'none';
+                
+                // Close popup after showing error
+                setTimeout(() => {
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            type: 'auth_error',
+                            error: error.message
+                        }, '*');
+                        window.close();
+                    }
+                }, 3000);
+            }
+        }
+        
+        // Start the callback process
+        handleCallback();
+    </script>
+</body>
+</html>
