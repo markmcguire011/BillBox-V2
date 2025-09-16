@@ -2,6 +2,9 @@
 # Minimum CMake version required
 cmake_minimum_required(VERSION 3.16)
 
+# Find pybind11
+find_package(pybind11 QUIET)
+
 # Project configuration
 project(billbox_preprocessing 
     VERSION 1.0.0
@@ -80,6 +83,48 @@ set(EXTERNAL_HEADERS
 
 # Main preprocessing executable
 add_executable(${PROJECT_NAME} ${MAIN_SOURCES} ${HEADERS})
+
+# =============================================================================
+# PYTHON BINDINGS (if pybind11 is found)
+# =============================================================================
+
+if(pybind11_FOUND)
+    message(STATUS "pybind11 found - building Python bindings")
+    
+    # Python binding sources (excluding main.cpp)
+    set(BINDING_SOURCES
+        src/image.cpp
+        src/grayscale.cpp
+        src/resize.cpp
+        src/contrast.cpp
+        src/filter.cpp
+        src/threshold.cpp
+        src/deskew.cpp
+        src/pipeline.cpp
+        src/python_bindings.cpp
+    )
+    
+    # Create Python module
+    pybind11_add_module(billbox_preprocessing_py ${BINDING_SOURCES} ${HEADERS})
+    
+    # Compiler definitions for Python module
+    target_compile_definitions(billbox_preprocessing_py PRIVATE
+        STB_IMAGE_IMPLEMENTATION
+        STB_IMAGE_WRITE_IMPLEMENTATION
+    )
+    
+    # Set module properties
+    set_target_properties(billbox_preprocessing_py PROPERTIES
+        OUTPUT_NAME "billbox_preprocessing"
+        SUFFIX "${PYTHON_MODULE_EXTENSION}"
+    )
+    
+else()
+    message(STATUS "pybind11 not found - skipping Python bindings")
+    message(STATUS "To build Python bindings, install pybind11:")
+    message(STATUS "  pip install pybind11")
+    message(STATUS "  or: conda install pybind11")
+endif()
 
 # =============================================================================
 # COMPILER DEFINITIONS
