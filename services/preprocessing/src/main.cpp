@@ -3,6 +3,7 @@
 #include "resize.h"
 #include "contrast.h"
 #include "filter.h"
+#include "threshold.h"
 #include <iostream>
 #include <filesystem>
 #include <string>
@@ -15,7 +16,8 @@ void display_main_menu() {
     std::cout << "2. Image Resizing/Scaling\n";
     std::cout << "3. Contrast Normalization\n";
     std::cout << "4. Image Filtering\n";
-    std::cout << "5. Run All Techniques (Demo)\n";
+    std::cout << "5. Image Thresholding\n";
+    std::cout << "6. Run All Techniques (Demo)\n";
     std::cout << "0. Exit\n";
     std::cout << "======================================\n";
     std::cout << "Choose an option: ";
@@ -62,6 +64,17 @@ void display_filter_menu() {
     std::cout << "6. Strong Gaussian Blur\n";
     std::cout << "7. Custom Gaussian Blur\n";
     std::cout << "8. Box Blur\n";
+    std::cout << "0. Back to Main Menu\n";
+    std::cout << "Choose method: ";
+}
+
+void display_threshold_menu() {
+    std::cout << "\n--- Image Thresholding ---\n";
+    std::cout << "1. Otsu's Method (Automatic)\n";
+    std::cout << "2. Binary Threshold (Manual)\n";
+    std::cout << "3. Binary Inverted Threshold\n";
+    std::cout << "4. Adaptive Mean Threshold\n";
+    std::cout << "5. Adaptive Gaussian Threshold\n";
     std::cout << "0. Back to Main Menu\n";
     std::cout << "Choose method: ";
 }
@@ -300,6 +313,75 @@ void process_filter(const Image& img) {
     std::cout << "Saved result to: " << filename << "\n";
 }
 
+void process_threshold(const Image& img) {
+    int choice;
+    display_threshold_menu();
+    std::cin >> choice;
+    
+    Image result = img;
+    std::string filename;
+    
+    switch (choice) {
+        case 1: {
+            uint8_t otsu_value = calculate_otsu_threshold(img);
+            result = threshold_otsu(img);
+            filename = "output/threshold_otsu.png";
+            std::cout << "Applied Otsu's thresholding (threshold value: " << static_cast<int>(otsu_value) << ").\n";
+            break;
+        }
+        case 2: {
+            int threshold_value;
+            std::cout << "Enter threshold value (0-255): ";
+            std::cin >> threshold_value;
+            threshold_value = std::max(0, std::min(255, threshold_value));
+            result = threshold_binary(img, static_cast<uint8_t>(threshold_value));
+            filename = "output/threshold_binary.png";
+            std::cout << "Applied binary thresholding (threshold: " << threshold_value << ").\n";
+            break;
+        }
+        case 3: {
+            int threshold_value;
+            std::cout << "Enter threshold value (0-255): ";
+            std::cin >> threshold_value;
+            threshold_value = std::max(0, std::min(255, threshold_value));
+            result = threshold_binary_inverted(img, static_cast<uint8_t>(threshold_value));
+            filename = "output/threshold_binary_inverted.png";
+            std::cout << "Applied inverted binary thresholding (threshold: " << threshold_value << ").\n";
+            break;
+        }
+        case 4: {
+            int block_size, c;
+            std::cout << "Enter block size (odd number, e.g., 11, 15): ";
+            std::cin >> block_size;
+            std::cout << "Enter constant C (e.g., 2, 5): ";
+            std::cin >> c;
+            result = threshold_adaptive_mean(img, block_size, c);
+            filename = "output/threshold_adaptive_mean.png";
+            std::cout << "Applied adaptive mean thresholding (block size: " << block_size << ", C: " << c << ").\n";
+            break;
+        }
+        case 5: {
+            int block_size, c;
+            std::cout << "Enter block size (odd number, e.g., 11, 15): ";
+            std::cin >> block_size;
+            std::cout << "Enter constant C (e.g., 2, 5): ";
+            std::cin >> c;
+            result = threshold_adaptive_gaussian(img, block_size, c);
+            filename = "output/threshold_adaptive_gaussian.png";
+            std::cout << "Applied adaptive Gaussian thresholding (block size: " << block_size << ", C: " << c << ").\n";
+            break;
+        }
+        case 0:
+            return;
+        default:
+            std::cout << "Invalid choice. Returning to main menu.\n";
+            return;
+    }
+    
+    save_image_auto(filename, result);
+    std::cout << "Saved result to: " << filename << "\n";
+}
+
 void run_demo(const Image& img) {
     std::cout << "\n--- Running Demo (All Techniques) ---\n";
     std::cout << "This will apply various techniques and save results...\n";
@@ -330,6 +412,11 @@ void run_demo(const Image& img) {
     Image filtered = gaussian_blur_3x3(img);
     save_image_auto("output/demo_filtered.png", filtered);
     std::cout << "Saved filtered image\n";
+    
+    // Threshold
+    Image thresholded = threshold_otsu(gray);
+    save_image_auto("output/demo_threshold.png", thresholded);
+    std::cout << "Saved thresholded image (Otsu's method)\n";
     
     // Combination
     Image combo = median_filter_3x3(normalize_contrast(gray));
@@ -370,6 +457,9 @@ int main() {
                     process_filter(img);
                     break;
                 case 5:
+                    process_threshold(img);
+                    break;
+                case 6:
                     run_demo(img);
                     break;
                 case 0:

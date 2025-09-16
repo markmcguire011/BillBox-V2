@@ -45,6 +45,7 @@ set(MAIN_SOURCES
     src/resize.cpp
     src/contrast.cpp
     src/filter.cpp
+    src/threshold.cpp
     # TODO: Add future source files here, for example:
     # src/preprocessing.cpp    # Core preprocessing pipeline
     # src/ocr_prep.cpp        # OCR preparation functions
@@ -59,6 +60,7 @@ set(HEADERS
     include/resize.h
     include/contrast.h
     include/filter.h
+    include/threshold.h
     # TODO: Add future header files here, for example:
     # include/preprocessing.h
     # include/ocr_prep.h
