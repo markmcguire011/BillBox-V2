@@ -5,7 +5,7 @@
 #include <cmath>
 
 uint8_t calculate_otsu_threshold(const Image& input_image) {
-    // Grayscale if needed
+    // Convert to grayscale if needed
     Image gray_img = input_image.channels == 1 ? input_image : to_grayscale_luminance(input_image);
     
     // Calculate histogram
@@ -19,37 +19,45 @@ uint8_t calculate_otsu_threshold(const Image& input_image) {
         }
     }
     
-    // Calculate sum of all pixel values
-    float sum = 0.0f;
+    // Calculate total mean
+    float total_mean = 0.0f;
     for (int i = 0; i < 256; ++i) {
-        sum += i * histogram[i];
+        total_mean += i * histogram[i];
     }
+    total_mean /= total_pixels;
     
-    float sum_background = 0.0f;
-    int weight_background = 0;
     float max_variance = 0.0f;
     uint8_t optimal_threshold = 0;
     
-    // Try all possible threshold values
-    for (int threshold = 0; threshold < 256; ++threshold) {
-        weight_background += histogram[threshold];
+    float sum_background = 0.0f;
+    int weight_background = 0;
+    
+    // Try all possible threshold values (0 to 255)
+    for (int t = 0; t < 256; ++t) {
+        // Update background class statistics
+        weight_background += histogram[t];
         if (weight_background == 0) continue;
+        
+        sum_background += t * histogram[t];
         
         int weight_foreground = total_pixels - weight_background;
         if (weight_foreground == 0) break;
         
-        sum_background += threshold * histogram[threshold];
-        
+        // Calculate class means
         float mean_background = sum_background / weight_background;
-        float mean_foreground = (sum - sum_background) / weight_foreground;
+        float mean_foreground = (total_mean * total_pixels - sum_background) / weight_foreground;
         
-        // Calculate between-class variance
-        float variance = weight_background * weight_foreground * 
-                        (mean_background - mean_foreground) * (mean_background - mean_foreground);
+        // Calculate between-class variance (normalized)
+        float weight_bg_norm = (float)weight_background / total_pixels;
+        float weight_fg_norm = (float)weight_foreground / total_pixels;
         
-        if (variance > max_variance) {
-            max_variance = variance;
-            optimal_threshold = threshold;
+        float between_class_variance = weight_bg_norm * weight_fg_norm * 
+                                     (mean_background - mean_foreground) * (mean_background - mean_foreground);
+        
+        // Track maximum variance and corresponding threshold
+        if (between_class_variance > max_variance) {
+            max_variance = between_class_variance;
+            optimal_threshold = t;
         }
     }
     

@@ -326,7 +326,7 @@ void process_threshold(const Image& img) {
             uint8_t otsu_value = calculate_otsu_threshold(img);
             result = threshold_otsu(img);
             filename = "output/threshold_otsu.png";
-            std::cout << "Applied Otsu's thresholding (threshold value: " << static_cast<int>(otsu_value) << ").\n";
+            std::cout << "Applied Otsu's thresholding (calculated threshold: " << static_cast<int>(otsu_value) << ").\n";
             break;
         }
         case 2: {
