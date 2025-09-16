@@ -11,14 +11,16 @@ from pydantic import BaseModel
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from dotenv import load_dotenv
 import jwt
 
+load_dotenv()
 router = APIRouter(prefix="/auth", tags=["authentication"])
 security = HTTPBearer()
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/callback")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:3000/callback.html")
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key")
 
 class AuthResponse(BaseModel):
@@ -68,7 +70,7 @@ async def google_callback(code: str, state: str):
                 "token_uri": "https://oauth2.googleapis.com/token"
             }
         },
-        scopes=['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar']
+        scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/calendar']
     )
     flow.redirect_uri = GOOGLE_REDIRECT_URI
     
