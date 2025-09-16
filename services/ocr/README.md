@@ -30,16 +30,16 @@ For **Python 3.13+** users experiencing distutils errors, our modern build syste
 ## Architecture
 
 - **C++ Preprocessing**: High-performance image preprocessing pipeline (grayscale, deskewing, contrast enhancement, thresholding)
-- **Python OCR**: pytesseract integration for text extraction
-- **Pipeline Integration**: Seamless connection between preprocessing and OCR
+- **Python OCR**: pytesseract integration with OpenCV preprocessing as primary method
+- **Data Extraction**: Regex-based extraction of amounts, due dates, and vendor information
+- **Unified Pipeline**: Complete invoice processing from image to API-ready data
 - **Modern Packaging**: Compatible with Python 3.8-3.13, avoids deprecated distutils
 
 ## File Structure
 
 ```
 services/ocr/
-├── billbox_ocr.py              # Main OCR service module
-├── test_python_bindings.py     # Test and demonstration script
+├── demo_pipeline.py            # Pipeline demonstration script
 ├── build.py                    # Modern build script (avoids distutils)
 ├── install.sh                  # Automated installation script
 ├── setup.py                    # Python extension configuration
@@ -47,6 +47,14 @@ services/ocr/
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # This file
 ├── src/
+│   ├── pipeline.py             # Main invoice processing pipeline
+│   ├── ocr_engine.py           # OCR engine with OpenCV/C++ preprocessing
+│   └── extractor.py            # Data extraction (amount, due date, vendor)
+├── tests/
+│   ├── test_pipeline.py        # Pipeline integration tests
+│   ├── test_ocr_engine.py      # OCR engine tests
+│   └── test_extractor.py       # Data extraction tests
+├── cpp/
 │   └── python_bindings.cpp     # C++ Python bindings
 └── venv/                       # Virtual environment (created during setup)
 
@@ -164,59 +172,108 @@ python billbox_ocr.py
 
 ## Usage
 
-### Basic OCR
+### Quick Invoice Processing
 
 ```python
-import cv2
-from billbox_ocr import BillBoxOCR
+from src.pipeline import process_invoice_file
 
-# Initialize OCR service
-ocr = BillBoxOCR(pipeline_type='invoice')
+# Process a single invoice file (returns API-ready data)
+result = process_invoice_file('path/to/invoice.png')
 
-# Load image
-image = cv2.imread('path/to/invoice.png')
-
-# Extract text
-result = ocr.extract_text(image)
-
-if result.success:
-    print(f"Extracted text: {result.text}")
-    print(f"Confidence: {result.confidence}%")
-    print(f"Skew angle: {result.preprocessing_stats['skew_angle']}°")
+if result['success']:
+    print(f"Amount: ${result['data']['amount']}")
+    print(f"Due Date: {result['data']['due_date']}")
+    print(f"Vendor: {result['data']['vendor']}")
+    print(f"OCR Confidence: {result['metadata']['ocr_confidence']:.1f}%")
 else:
-    print(f"OCR failed: {result.error_message}")
+    print(f"Error: {result['error']}")
 ```
 
-### Invoice Data Extraction
+### Complete Pipeline Usage
 
 ```python
-# Extract structured invoice data
-invoice_data = ocr.extract_invoice_data(image)
-print(f"Confidence: {invoice_data['confidence']}%")
-print(f"Lines of text: {len(invoice_data['lines'])}")
+from src.pipeline import InvoiceProcessor, create_invoice_processor
+import cv2
+
+# Create custom processor
+processor = create_invoice_processor(
+    require_amount=True,
+    require_due_date=True,
+    min_ocr_confidence=50.0
+)
+
+# Load and process image
+image = cv2.imread('path/to/invoice.png')
+result = processor.process_image(image, 'my_invoice')
+
+# Get API-ready data
+api_data = processor.get_api_ready_data(result)
+print(api_data)
+```
+
+### OCR Engine Only
+
+```python
+from src.ocr_engine import OCREngine, OCRConfig
+
+# Initialize OCR engine
+config = OCRConfig(
+    tesseract_config='--oem 3 --psm 6',
+    pipeline_type='invoice',
+    enable_preprocessing=True
+)
+ocr = OCREngine(config)
+
+# Extract text only
+result = ocr.extract_text(image)
+if result.success:
+    print(f"Text: {result.text}")
+    print(f"Confidence: {result.confidence}%")
+    print(f"Preprocessing: {result.preprocessing_stats}")
+```
+
+### Data Extraction Only
+
+```python
+from src.extractor import InvoiceExtractor
+
+# Extract structured data from text
+extractor = InvoiceExtractor()
+extracted = extractor.extract("ACME Corp Invoice Total: $1,234.56 Due: 2024-02-15")
+
+print(f"Amount: {extracted.amount}")
+print(f"Due Date: {extracted.due_date}")
+print(f"Vendor: {extracted.vendor}")
+print(f"Confidence: {extracted.confidence_scores}")
 ```
 
 ### Batch Processing
 
 ```python
-# Process multiple images
-image_paths = ['invoice1.png', 'invoice2.jpg', 'invoice3.pdf']
-results = ocr.process_batch(image_paths, output_dir='results')
+# Process multiple invoices
+image_paths = ['invoice1.png', 'invoice2.jpg', 'invoice3.png']
+results = processor.process_batch(image_paths)
 
 for result in results:
-    if result['success']:
-        print(f"✓ {result['image_path']}: {result['confidence']}% confidence")
+    if result.processing_success:
+        print(f"✓ Amount: ${result.amount}, Due: {result.due_date}")
     else:
-        print(f"✗ {result['image_path']}: {result['error']}")
+        print(f"✗ Error: {result.error_message}")
 ```
 
-### Pipeline Configuration
+### Pre-configured Processors
 
 ```python
-# Use different preprocessing pipelines
-ocr_invoice = BillBoxOCR(pipeline_type='invoice')     # Optimized for invoices
-ocr_document = BillBoxOCR(pipeline_type='document')   # General documents
-ocr_custom = BillBoxOCR(pipeline_type='custom')       # Custom settings
+from src.pipeline import DEFAULT_PROCESSOR, STRICT_PROCESSOR, LENIENT_PROCESSOR
+
+# Default: requires amount only
+result = DEFAULT_PROCESSOR.process_image(image)
+
+# Strict: requires amount + due date, high confidence
+result = STRICT_PROCESSOR.process_image(image)
+
+# Lenient: no requirements, low confidence threshold
+result = LENIENT_PROCESSOR.process_image(image)
 ```
 
 ## C++ Preprocessing Pipeline
@@ -246,33 +303,99 @@ The preprocessing pipeline performs the following steps:
 
 ## API Reference
 
-### BillBoxOCR Class
+### Pipeline Classes
 
-#### Constructor
+#### InvoiceProcessor
+Main pipeline orchestrator that combines OCR and data extraction.
+
 ```python
-BillBoxOCR(tesseract_config='--oem 3 --psm 6', 
-           preprocessing_enabled=True, 
-           pipeline_type='invoice')
+from src.pipeline import InvoiceProcessor, PipelineConfig
+
+processor = InvoiceProcessor(config)
+result = processor.process_image(image_data, source_info)
+api_data = processor.get_api_ready_data(result)
 ```
 
-#### Methods
+**Methods:**
+- `process_image(image_data, source_info) -> InvoiceData`
+- `process_batch(image_sources) -> List[InvoiceData]`
+- `get_api_ready_data(invoice_data) -> Dict`
 
-- `extract_text(image) -> OCRResult`: Extract text from image
-- `extract_invoice_data(image) -> Dict`: Extract structured invoice data
-- `process_batch(image_paths, output_dir) -> List[Dict]`: Process multiple images
-- `preprocess_image(image) -> Tuple[np.ndarray, Dict]`: Preprocess image only
+#### OCREngine
+Handles text extraction with preprocessing.
 
-### OCRResult Class
+```python
+from src.ocr_engine import OCREngine, OCRConfig
+
+engine = OCREngine(config)
+result = engine.extract_text(image)
+```
+
+**Methods:**
+- `extract_text(image) -> OCRResult`
+- `process_image_file(image_path) -> OCRResult`
+- `batch_process(image_paths) -> List[OCRResult]`
+
+#### InvoiceExtractor
+Extracts structured data from text.
+
+```python
+from src.extractor import InvoiceExtractor
+
+extractor = InvoiceExtractor()
+data = extractor.extract(text)
+```
+
+**Methods:**
+- `extract(text) -> ExtractedData`
+- `extract_batch(texts) -> List[ExtractedData]`
+
+### Data Classes
+
+#### InvoiceData
+Final processed invoice data ready for API consumption.
 
 ```python
 @dataclass
-class OCRResult:
-    text: str                    # Extracted text
-    confidence: float            # Average confidence score
-    word_boxes: List[Dict]       # Word-level bounding boxes
-    preprocessing_stats: Dict    # Preprocessing metadata
-    success: bool               # Success flag
-    error_message: str          # Error message if failed
+class InvoiceData:
+    amount: Optional[Decimal]           # Extracted amount
+    due_date: Optional[datetime]        # Extracted due date
+    vendor: Optional[str]               # Extracted vendor name
+    ocr_text: str                       # Full OCR text
+    ocr_confidence: float               # OCR confidence score
+    extraction_confidence: Dict[str, float]  # Per-field confidence
+    extraction_notes: List[str]         # Processing notes
+    processing_success: bool            # Overall success flag
+    processing_time_ms: float           # Processing time
+    error_message: Optional[str]        # Error details
+```
+
+#### API Response Format
+The `get_api_ready_data()` method returns data in this format:
+
+```python
+{
+    'success': bool,                    # Processing success
+    'data': {
+        'amount': float,                # Dollar amount (or null)
+        'due_date': str,                # ISO format date (or null)
+        'vendor': str,                  # Vendor name (or null)
+        'currency': str                 # Currency code (default: 'USD')
+    },
+    'metadata': {
+        'ocr_confidence': float,        # OCR confidence percentage
+        'extraction_confidence': {      # Per-field confidence scores
+            'amount': float,
+            'due_date': float,
+            'vendor': float,
+            'overall': float
+        },
+        'processing_time_ms': float,    # Total processing time
+        'text_length': int,             # Length of extracted text
+        'extraction_notes': List[str]   # Processing notes
+    },
+    'error': str                        # Error message (null if success)
+}
 ```
 
 ## Performance
