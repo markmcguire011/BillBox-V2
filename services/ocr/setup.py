@@ -16,7 +16,7 @@ def get_extension():
     
     # Source files with correct paths
     sources = [
-        "src/python_bindings.cpp",
+        "cpp/python_bindings.cpp",
         "../preprocessing/src/image.cpp",
         "../preprocessing/src/grayscale.cpp", 
         "../preprocessing/src/resize.cpp",

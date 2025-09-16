@@ -113,7 +113,7 @@ def verify_build():
 def check_source_files():
     """Check if all required source files exist"""
     required_files = [
-        "src/python_bindings.cpp",
+        "cpp/python_bindings.cpp",
         "../preprocessing/src/image.cpp",
         "../preprocessing/src/grayscale.cpp",
         "../preprocessing/src/resize.cpp",
@@ -164,7 +164,7 @@ def main():
     print("=" * 50)
     
     # Check if we're in the right directory
-    if not Path("src/python_bindings.cpp").exists():
+    if not Path("cpp/python_bindings.cpp").exists():
         print("✗ Error: python_bindings.cpp not found!")
         print("Please run this script from the services/ocr directory")
         print("Current directory:", Path.cwd())
@@ -204,17 +204,6 @@ def main():
     
     print("\n" + "=" * 50)
     print("✓ Build completed successfully!")
-    print("\nYou can now use the module:")
-    print("  python billbox_ocr.py")
-    print("  python test_python_bindings.py")
-    
-    # Show file locations
-    print("\nFiles structure:")
-    print("  services/ocr/")
-    print("    ├── billbox_ocr.py (main OCR service)")
-    print("    ├── test_python_bindings.py (test script)")
-    print("    ├── src/python_bindings.cpp (C++ bindings)")
-    print("    └── billbox_preprocessing.*.so (built extension)")
     
     return 0
 

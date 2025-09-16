@@ -9,7 +9,7 @@ echo "BillBox OCR Service - Installation Script"
 echo "========================================"
 
 # Check if we're in the right directory
-if [ ! -f "src/python_bindings.cpp" ]; then
+if [ ! -f "cpp/python_bindings.cpp" ]; then
     echo "✗ Error: Run this script from services/ocr directory"
     exit 1
 fi

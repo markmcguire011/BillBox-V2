@@ -61,7 +61,7 @@ test = [
 py-modules = []
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["cpp"]
 include = ["billbox_*"]
 
 [tool.black]
