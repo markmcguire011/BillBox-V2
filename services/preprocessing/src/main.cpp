@@ -5,6 +5,7 @@
 #include "filter.h"
 #include "threshold.h"
 #include "deskew.h"
+#include "pipeline.h"
 #include <iostream>
 #include <filesystem>
 #include <string>
@@ -19,7 +20,9 @@ void display_main_menu() {
     std::cout << "4. Image Filtering\n";
     std::cout << "5. Image Thresholding\n";
     std::cout << "6. Document Deskewing\n";
-    std::cout << "7. Run All Techniques (Demo)\n";
+    std::cout << "7. OCR Preprocessing Pipeline\n";
+    std::cout << "8. Batch Processing\n";
+    std::cout << "9. Run All Techniques (Demo)\n";
     std::cout << "0. Exit\n";
     std::cout << "======================================\n";
     std::cout << "Choose an option: ";
@@ -90,6 +93,25 @@ void display_deskew_menu() {
     std::cout << "5. Manual Rotation (Specify Angle)\n";
     std::cout << "0. Back to Main Menu\n";
     std::cout << "Choose method: ";
+}
+
+void display_pipeline_menu() {
+    std::cout << "\n--- OCR Preprocessing Pipeline ---\n";
+    std::cout << "1. Invoice Processing Pipeline (Optimized)\n";
+    std::cout << "2. Document Processing Pipeline (General)\n";
+    std::cout << "3. Custom Pipeline (Configure Steps)\n";
+    std::cout << "4. Quick OCR Prep (Default Settings)\n";
+    std::cout << "0. Back to Main Menu\n";
+    std::cout << "Choose pipeline: ";
+}
+
+void display_batch_menu() {
+    std::cout << "\n--- Batch Processing ---\n";
+    std::cout << "1. Process Directory (Invoice Pipeline)\n";
+    std::cout << "2. Process Directory (Document Pipeline)\n";
+    std::cout << "3. Process Directory (Custom Settings)\n";
+    std::cout << "0. Back to Main Menu\n";
+    std::cout << "Choose option: ";
 }
 
 void process_grayscale(const Image& img) {
@@ -457,6 +479,146 @@ void process_deskew(const Image& img) {
     std::cout << "Saved result to: " << filename << "\n";
 }
 
+void process_pipeline(const Image& img) {
+    int choice;
+    display_pipeline_menu();
+    std::cin >> choice;
+    
+    std::string pipeline_type;
+    PipelineResult result{Image(1, 1, 1), {}, {}, 0.0f, 0, false, ""};
+    
+    switch (choice) {
+        case 1: {
+            result = process_invoice_pipeline(img);
+            pipeline_type = "Invoice Pipeline";
+            break;
+        }
+        case 2: {
+            result = process_document_pipeline(img);
+            pipeline_type = "Document Pipeline";
+            break;
+        }
+        case 3: {
+            // Custom pipeline configuration
+            PipelineConfig config;
+            
+            std::cout << "\n--- Custom Pipeline Configuration ---\n";
+            
+            char enable;
+            std::cout << "Enable deskewing? (y/n): ";
+            std::cin >> enable;
+            config.enable_deskewing = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable noise reduction? (y/n): ";
+            std::cin >> enable;
+            config.enable_noise_reduction = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable contrast enhancement? (y/n): ";
+            std::cin >> enable;
+            config.enable_contrast_enhancement = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable thresholding? (y/n): ";
+            std::cin >> enable;
+            config.enable_thresholding = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Save intermediate steps? (y/n): ";
+            std::cin >> enable;
+            config.save_intermediate_steps = (enable == 'y' || enable == 'Y');
+            
+            result = process_custom_pipeline(img, config);
+            pipeline_type = "Custom Pipeline";
+            break;
+        }
+        case 4: {
+            PipelineConfig config;  // Default configuration
+            result = process_for_ocr(img, config);
+            pipeline_type = "Quick OCR Prep";
+            break;
+        }
+        case 0:
+            return;
+        default:
+            std::cout << "Invalid choice. Returning to main menu.\n";
+            return;
+    }
+    
+    if (result.success) {
+        std::string filename = "output/pipeline_result.png";
+        save_pipeline_result(result, filename, PipelineConfig{});
+        std::cout << "\n" << pipeline_type << " completed successfully!\n";
+        std::cout << "Saved result to: " << filename << "\n";
+        print_pipeline_summary(result);
+    } else {
+        std::cout << "\nPipeline failed: " << result.error_message << "\n";
+    }
+}
+
+void process_batch() {
+    int choice;
+    display_batch_menu();
+    std::cin >> choice;
+    
+    std::string input_dir, output_dir;
+    std::cout << "Enter input directory path: ";
+    std::cin >> input_dir;
+    std::cout << "Enter output directory path: ";
+    std::cin >> output_dir;
+    
+    bool success = false;
+    
+    switch (choice) {
+        case 1: {
+            PipelineConfig config = create_invoice_config();
+            config.save_intermediate_steps = false;  // Don't save intermediates for batch
+            success = process_directory(input_dir, output_dir, config);
+            break;
+        }
+        case 2: {
+            PipelineConfig config = create_document_config();
+            config.save_intermediate_steps = false;
+            success = process_directory(input_dir, output_dir, config);
+            break;
+        }
+        case 3: {
+            PipelineConfig config;
+            char enable;
+            
+            std::cout << "\n--- Batch Processing Configuration ---\n";
+            std::cout << "Enable deskewing? (y/n): ";
+            std::cin >> enable;
+            config.enable_deskewing = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable noise reduction? (y/n): ";
+            std::cin >> enable;
+            config.enable_noise_reduction = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable contrast enhancement? (y/n): ";
+            std::cin >> enable;
+            config.enable_contrast_enhancement = (enable == 'y' || enable == 'Y');
+            
+            std::cout << "Enable thresholding? (y/n): ";
+            std::cin >> enable;
+            config.enable_thresholding = (enable == 'y' || enable == 'Y');
+            
+            config.save_intermediate_steps = false;
+            success = process_directory(input_dir, output_dir, config);
+            break;
+        }
+        case 0:
+            return;
+        default:
+            std::cout << "Invalid choice. Returning to main menu.\n";
+            return;
+    }
+    
+    if (success) {
+        std::cout << "\nBatch processing completed successfully!\n";
+        std::cout << "Processed images saved to: " << output_dir << "\n";
+    } else {
+        std::cout << "\nBatch processing failed. Check error messages above.\n";
+    }
+}
+
 void run_demo(const Image& img) {
     std::cout << "\n--- Running Demo (All Techniques) ---\n";
     std::cout << "This will apply various techniques and save results...\n";
@@ -543,6 +705,12 @@ int main() {
                     process_deskew(img);
                     break;
                 case 7:
+                    process_pipeline(img);
+                    break;
+                case 8:
+                    process_batch();
+                    break;
+                case 9:
                     run_demo(img);
                     break;
                 case 0:

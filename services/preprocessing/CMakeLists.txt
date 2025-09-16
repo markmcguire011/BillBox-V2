@@ -47,8 +47,8 @@ set(MAIN_SOURCES
     src/filter.cpp
     src/threshold.cpp
     src/deskew.cpp
+    src/pipeline.cpp
     # TODO: Add future source files here, for example:
-    # src/preprocessing.cpp    # Core preprocessing pipeline
     # src/ocr_prep.cpp        # OCR preparation functions
     # src/noise_reduction.cpp # Noise reduction algorithms
 )
@@ -62,8 +62,8 @@ set(HEADERS
     include/filter.h
     include/threshold.h
     include/deskew.h
+    include/pipeline.h
     # TODO: Add future header files here, for example:
-    # include/preprocessing.h
     # include/ocr_prep.h
     # include/noise_reduction.h
 )
