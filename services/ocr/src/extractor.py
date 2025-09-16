@@ -113,15 +113,18 @@ class InvoiceExtractor:
             re.compile(rf'([0-9,]+\.?[0-9]*)\s*({currency_pattern})', flags),
             # Amount: $123.45, Total: 1,234.56, etc.
             re.compile(rf'(?:{"| ".join(self.config.amount_keywords)})\s*:?\s*({currency_pattern})?\s*([0-9,]+\.?[0-9]*)', flags),
-            # Standalone decimal numbers (lower confidence)
-            re.compile(r'([0-9,]{1,3}(?:,[0-9]{3})*\.?[0-9]{0,2})', flags)
+            # Standalone decimal numbers (lower confidence) - disabled to avoid partial matches
+            # re.compile(r'(?<![0-9])([0-9,]{1,3}(?:,[0-9]{3})*\.?[0-9]{0,2})(?![0-9])', flags)
         ]
         
-        # Date patterns
+        # Date patterns - improved to handle more variations
         self.date_patterns = [
             # Various date formats with keywords
             re.compile(r'(?:due\s+date|due|payment\s+due|date\s+due)\s*:?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})', flags),
             re.compile(r'(?:due\s+date|due|payment\s+due|date\s+due)\s*:?\s*([a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{2,4})', flags),
+            # More flexible due date patterns
+            re.compile(r'(?:due\s*by|payment\s*by|pay\s*by)\s*:?\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})', flags),
+            re.compile(r'(?:due\s*by|payment\s*by|pay\s*by)\s*:?\s*([a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{2,4})', flags),
             # Standalone date patterns (lower confidence)
             re.compile(r'([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})', flags),
             re.compile(r'([a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{2,4})', flags),
@@ -129,15 +132,17 @@ class InvoiceExtractor:
             re.compile(r'([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})', flags)
         ]
         
-        # Vendor patterns
-        vendor_keywords = '|'.join(self.config.vendor_keywords)
+        # Vendor patterns - improved to handle text without newlines
+        vendor_keywords = '|'.join(re.escape(kw) for kw in self.config.vendor_keywords)
         self.vendor_patterns = [
-            # "From: Company Name", "Vendor: Business Inc", etc.
-            re.compile(rf'(?:{vendor_keywords})\s*:?\s*([A-Za-z0-9\s&\.,\-\']+?)(?:\n|$|[0-9]{{3,}})', flags),
-            # Company name at start of line (first few lines typically)
-            re.compile(r'^([A-Z][A-Za-z0-9\s&\.,\-\']{2,50})(?:\n|$)', re.MULTILINE | flags),
-            # Lines containing business indicators
-            re.compile(r'([A-Za-z\s&\.,\-\']*(?:Inc|LLC|Ltd|Corp|Corporation|Company|Services|Solutions)[A-Za-z\s&\.,\-\']*)', flags)
+            # "From: Company Name", "Vendor: Business Inc", etc. - end at newline, punctuation, or amount keywords
+            re.compile(rf'(?:{vendor_keywords})\s*:?\s*([A-Za-z0-9\s&\.,\-\']+?)(?:\s+(?:Amount|Total|Invoice|Date|Due|\$|\n)|$)', flags),
+            # Company name at start of line - more flexible
+            re.compile(r'^([A-Z][A-Za-z0-9\s&\.,\-\']{2,}?)(?:\s+(?:Amount|Total|Invoice|Date|Due|\$|\n)|$)', re.MULTILINE | flags),
+            # Lines containing business indicators - match just the business name part
+            re.compile(r'([A-Za-z0-9\s&\.,\-\']*(?:Inc|LLC|Ltd|Corp|Corporation|Company|Services|Solutions)(?:\s+[A-Za-z0-9\s&\.,\-\']*)?)', flags),
+            # More flexible pattern but stop at amount/total keywords
+            re.compile(rf'(?:{vendor_keywords})\s*:?\s*([^$\n]*?)(?:\s+(?:Amount|Total|Invoice|Date|Due|\$)|\n|$)', flags)
         ]
     
     def extract(self, text: str) -> ExtractedData:
@@ -178,8 +183,8 @@ class InvoiceExtractor:
         text = re.sub(r'\r\n', '\n', text)
         text = re.sub(r'\r', '\n', text)
         
-        # Remove common OCR artifacts
-        text = re.sub(r'[^\w\s\.,\-\/\$���:()]', ' ', text)
+        # Remove common OCR artifacts but preserve important business characters
+        text = re.sub(r'[^\w\s\.,\-\/\$���&:()]', ' ', text)
         
         return text.strip()
     
@@ -192,26 +197,49 @@ class InvoiceExtractor:
             
             for match in matches:
                 try:
+                    # Get the full match and its position in text to check for negative context
                     if isinstance(match, tuple):
                         # Handle tuple results from regex groups
                         amount_str = ''.join(match).strip()
+                        full_match = ''.join(match)
                     else:
                         amount_str = match.strip()
+                        full_match = match
                     
-                    # Clean amount string
-                    amount_str = re.sub(r'[^\d\.]', '', amount_str)
+                    # Find the position of this match in the original text
+                    match_pos = text.find(full_match)
+                    if match_pos > 0:
+                        # Check characters before the match for negative signs
+                        before_text = text[max(0, match_pos-5):match_pos]
+                        if '-' in before_text and '$' not in before_text.split('-')[-1]:
+                            continue  # Skip if there's a minus sign before the amount
                     
-                    if amount_str and '.' in amount_str:
-                        # Ensure only one decimal point
+                    # Clean amount string - preserve commas for proper parsing
+                    amount_str = re.sub(r'[^\d\.,]', '', amount_str)
+                    # Remove commas for decimal conversion but validate format first
+                    if ',' in amount_str:
+                        # Check if comma usage is valid (thousands separator)
                         parts = amount_str.split('.')
-                        if len(parts) == 2:
-                            amount_str = parts[0] + '.' + parts[1]
+                        if len(parts) > 1:
+                            # Has decimal point - comma should be thousands separator
+                            integer_part = parts[0].replace(',', '')
+                            decimal_part = parts[1]
+                            amount_str = integer_part + '.' + decimal_part
                         else:
-                            continue
+                            # No decimal point - remove commas
+                            amount_str = amount_str.replace(',', '')
+                    
+                    # Skip if empty or just a decimal point
+                    if not amount_str or amount_str == '.':
+                        continue
+                    
+                    # Handle multiple decimal points
+                    if amount_str.count('.') > 1:
+                        continue
                     
                     amount = Decimal(amount_str)
                     
-                    # Validate amount range
+                    # Validate amount range (must be positive and within limits)
                     if 0 < amount <= self.config.max_amount_value:
                         confidence = 1.0 - (i * 0.2)  # Higher patterns have higher confidence
                         amounts_found.append((amount, confidence, str(match)))
@@ -305,6 +333,16 @@ class InvoiceExtractor:
                     if any(vendor_name.lower() in line.lower() for line in lines[:3]):
                         confidence += 0.3
                     
+                    # Boost confidence for shorter, cleaner business names
+                    if len(vendor_name) < 50 and not any(word.lower() in vendor_name.lower() 
+                                                        for word in ['invoice', 'bill', 'from']):
+                        confidence += 0.2
+                    
+                    # Extra boost for business entity indicators
+                    business_indicators = ['llc', 'inc', 'corp', 'ltd', 'company', 'services']
+                    if any(indicator in vendor_name.lower() for indicator in business_indicators):
+                        confidence += 0.1
+                    
                     vendors_found.append((vendor_name, confidence, match))
         
         # Store all matches for debugging
@@ -328,13 +366,23 @@ class InvoiceExtractor:
         # Remove extra whitespace
         vendor = re.sub(r'\s+', ' ', vendor).strip()
         
-        # Remove leading/trailing punctuation
-        vendor = re.sub(r'^[^\w]+|[^\w]+$', '', vendor)
+        # Remove leading/trailing punctuation but preserve & and -
+        vendor = re.sub(r'^[^\w&\-]+|[^\w&\-]+$', '', vendor)
         
-        # Capitalize properly
-        vendor = ' '.join(word.capitalize() for word in vendor.split())
+        # Capitalize properly while preserving special characters
+        words = []
+        for word in vendor.split():
+            if word in ['&']:
+                words.append(word)
+            elif '-' in word:
+                # Handle hyphenated words
+                parts = word.split('-')
+                capitalized_parts = [part.capitalize() for part in parts if part]
+                words.append('-'.join(capitalized_parts))
+            else:
+                words.append(word.capitalize())
         
-        return vendor
+        return ' '.join(words)
     
     def _is_valid_vendor_name(self, vendor: str) -> bool:
         """Validate if string is a reasonable vendor name"""
