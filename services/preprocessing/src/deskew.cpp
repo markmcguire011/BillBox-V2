@@ -31,7 +31,7 @@ float estimate_skew_angle_projection(const Image& input_image, float min_angle, 
         for (int y = 0; y < binary_img.height; ++y) {
             for (int x = 0; x < binary_img.width; ++x) {
                 // Rotate point and project onto y-axis
-                float rotated_x = x * cos_a - y * sin_a;
+                // float rotated_x = x * cos_a - y * sin_a;  // Not used
                 float rotated_y = x * sin_a + y * cos_a;
                 
                 int proj_y = static_cast<int>(rotated_y);
